@@ -1,11 +1,6 @@
 import * as core from '@actions/core'
-
+import {wait} from './wait'
 import axios from 'axios'
-async function wait(ms: number) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms)
-  })
-}
 
 const username: string = core.getInput('ansible_tower_user')
 const password: string = core.getInput('ansible_tower_pass')
