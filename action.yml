@@ -1,11 +1,25 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Trigger AWX job templates through REST APIs'
+description: 'Github action that allows you to trigger job templates via API call on AWX'
+author: 'bilalahmad99'
 inputs:
-  milliseconds: # change this
+  ansible_tower_user:
+    description: 'Ansible Tower or AWX User'
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+  ansible_tower_pass:
+    description: 'Ansible Tower or AWX Password'
+    required: true
+  ansible_tower_url:
+    description: 'Ansible Tower or AWX URL'
+    required: true
+  job_template_id:
+    description: 'Job Template ID on Ansible Tower or AWX'
+    required: true
+  extra_vars:
+    description: 'Extra vars required by the job template'
+    required: true
+outputs:
+  RESOURCE_NAME:
+    description: 'Component resource name output'
 runs:
   using: 'node16'
   main: 'dist/index.js'
