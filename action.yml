@@ -1,6 +1,9 @@
 name: 'Trigger AWX job templates through REST APIs'
 description: 'Github action that allows you to trigger job templates via API call on AWX'
 author: 'bilalahmad99'
+branding:
+  icon: 'truck'
+  color: 'green'
 inputs:
   ansible_tower_user:
     description: 'Ansible Tower or AWX User'
