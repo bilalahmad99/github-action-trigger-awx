@@ -49,26 +49,36 @@ const username = core.getInput('ansible_tower_user');
 const password = core.getInput('ansible_tower_pass');
 const url = core.getInput('ansible_tower_url');
 const additionalVars = JSON.parse(core.getInput('extra_vars'));
-const templateId = core.getInput('job_template_id');
+const jobTemplateId = core.getInput('job_template_id');
+const workflowTemplateId = core.getInput('workflow_template_id');
 const launchTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield axios_1.default.post(`${url}/api/v2/job_templates/${templateId}/launch/`, { extra_vars: additionalVars }, {
+    // determine whether or not we are triggering a workflow or job template based on the id passed in 
+    let templateId = jobTemplateId;
+    let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`;
+    let templateTypeLabel = 'Job';
+    if (workflowTemplateId !== undefined) {
+        templateId = workflowTemplateId;
+        templateTypeLabel = 'Workflow';
+        urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`;
+    }
+    const response = yield axios_1.default.post(urlLocation, { extra_vars: additionalVars }, {
         auth: {
             username: username,
             password: password
         }
     });
     if (response && response.data.job) {
-        console.log(`Template Id ${templateId} launched successfully.`);
+        console.log(`${templateTypeLabel} Template Id ${templateId} launched successfully.`);
         console.log(`Job ${response.data.job} was created on Ansible Tower: Status ${response.status}.`);
         return response.data.url;
     }
     if (response && response.data.detail) {
-        console.log(`Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`);
+        console.log(`${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`);
         throw new Error(response.data.detail);
     }
     else {
         console.log(response);
-        throw new Error(`Template ID ${templateId} couldn't be launched, the Ansible API is not working`);
+        throw new Error(`${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is not working`);
     }
 });
 function getJobStatus(jobUrl) {
@@ -152,6 +162,20 @@ function exportResourceName(output) {
 }
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
+        // make sure at least one template id is defined
+        if (jobTemplateId === undefined && workflowTemplateId === undefined) {
+            const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'";
+            console.log(errmsg);
+            core.setFailed(errmsg);
+            return;
+        }
+        // make sure only one template id is defined
+        if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
+            const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
+            console.log(errmsg);
+            core.setFailed(errmsg);
+            return;
+        }
         try {
             const jobUrl = yield launchTemplate();
             const jobData = yield getJobStatus(jobUrl);

@@ -10,15 +10,15 @@ const jobTemplateId: string = core.getInput('job_template_id')
 const workflowTemplateId: string = core.getInput('workflow_template_id')
 
 const launchTemplate = async () => {
-  // determine whether or not we are triggering a workflow or job template based on the id passed in 
-  let templateId  = jobTemplateId;
+  // determine whether or not we are triggering a workflow or job template based on the id passed in
+  let templateId = jobTemplateId
   let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`
-  let templateTypeLabel = 'Job';
+  let templateTypeLabel = 'Job'
 
   if (workflowTemplateId !== undefined) {
-    templateId  = workflowTemplateId ;
-    templateTypeLabel = 'Workflow';
-    urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`;
+    templateId = workflowTemplateId
+    templateTypeLabel = 'Workflow'
+    urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
   }
 
   const response = await axios.post(
@@ -145,7 +145,7 @@ async function exportResourceName(output: string) {
 async function run(): Promise<void> {
   // make sure at least one template id is defined
   if (jobTemplateId === undefined && workflowTemplateId === undefined) {
-    const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'";
+    const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'"
     console.log(errmsg)
     core.setFailed(errmsg)
     return
@@ -153,7 +153,8 @@ async function run(): Promise<void> {
 
   // make sure only one template id is defined
   if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
-    const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
+    const errmsg =
+      "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both"
     console.log(errmsg)
     core.setFailed(errmsg)
     return
