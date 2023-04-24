@@ -31,7 +31,11 @@ const launchTemplate = async () => {
       }
     }
   )
-  if (response && response.data.job) {
+  if (
+    response &&
+    response.data.job !== undefined &&
+    response.data.workflow_job !== undefined
+  ) {
     console.log(
       `${templateTypeLabel} Template Id ${templateId} launched successfully.`
     )

@@ -67,7 +67,7 @@ const launchTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
             password: password
         }
     });
-    if (response && response.data.job) {
+    if (response && (response.data.job !== undefined && response.data.workflow_job !== undefined)) {
         console.log(`${templateTypeLabel} Template Id ${templateId} launched successfully.`);
         console.log(`Job ${response.data.job} was created on Ansible Tower: Status ${response.status}.`);
         return response.data.url;
