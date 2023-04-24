@@ -151,6 +151,8 @@ async function run(): Promise<void> {
     return
   }
 
+  console.log(`jobTemplateId: ${jobTemplateId}`)
+  console.log(`workflowTemplateId: ${workflowTemplateId}`)
   // make sure only one template id is defined
   if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
     const errmsg =

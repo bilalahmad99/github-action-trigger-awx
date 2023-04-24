@@ -52,7 +52,7 @@ const additionalVars = JSON.parse(core.getInput('extra_vars'));
 const jobTemplateId = core.getInput('job_template_id');
 const workflowTemplateId = core.getInput('workflow_template_id');
 const launchTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
-    // determine whether or not we are triggering a workflow or job template based on the id passed in 
+    // determine whether or not we are triggering a workflow or job template based on the id passed in
     let templateId = jobTemplateId;
     let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`;
     let templateTypeLabel = 'Job';
@@ -169,6 +169,8 @@ function run() {
             core.setFailed(errmsg);
             return;
         }
+        console.log(`jobTemplateId: ${jobTemplateId}`);
+        console.log(`workflowTemplateId: ${workflowTemplateId}`);
         // make sure only one template id is defined
         if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
             const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
