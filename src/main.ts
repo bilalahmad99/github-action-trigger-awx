@@ -7,7 +7,7 @@ const password: string = core.getInput('ansible_tower_pass')
 const url: string = core.getInput('ansible_tower_url')
 const additionalVars = JSON.parse(core.getInput('extra_vars'))
 const jobTemplateId: string = core.getInput('job_template_id')
-const workflowTemplateId: string = core.getInput('job_template_id')
+const workflowTemplateId: string = core.getInput('workflow_template_id')
 
 const launchTemplate = async () => {
   // determine whether or not we are triggering a workflow or job template based on the id passed in 
