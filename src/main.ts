@@ -6,11 +6,23 @@ const username: string = core.getInput('ansible_tower_user')
 const password: string = core.getInput('ansible_tower_pass')
 const url: string = core.getInput('ansible_tower_url')
 const additionalVars = JSON.parse(core.getInput('extra_vars'))
-const templateId: string = core.getInput('job_template_id')
+const jobTemplateId: string = core.getInput('job_template_id')
+const workflowTemplateId: string = core.getInput('job_template_id')
 
 const launchTemplate = async () => {
+  // determine whether or not we are triggering a workflow or job template based on the id passed in 
+  let templateId  = jobTemplateId;
+  let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`
+  let templateTypeLabel = 'Job';
+
+  if (workflowTemplateId !== undefined) {
+    templateId  = workflowTemplateId ;
+    templateTypeLabel = 'Workflow';
+    urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`;
+  }
+
   const response = await axios.post(
-    `${url}/api/v2/job_templates/${templateId}/launch/`,
+    urlLocation,
     {extra_vars: additionalVars},
     {
       auth: {
@@ -20,7 +32,9 @@ const launchTemplate = async () => {
     }
   )
   if (response && response.data.job) {
-    console.log(`Template Id ${templateId} launched successfully.`)
+    console.log(
+      `${templateTypeLabel} Template Id ${templateId} launched successfully.`
+    )
     console.log(
       `Job ${response.data.job} was created on Ansible Tower: Status ${response.status}.`
     )
@@ -28,13 +42,13 @@ const launchTemplate = async () => {
   }
   if (response && response.data.detail) {
     console.log(
-      `Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`
+      `${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`
     )
     throw new Error(response.data.detail)
   } else {
     console.log(response)
     throw new Error(
-      `Template ID ${templateId} couldn't be launched, the Ansible API is not working`
+      `${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is not working`
     )
   }
 }
@@ -129,6 +143,22 @@ async function exportResourceName(output: string) {
 }
 
 async function run(): Promise<void> {
+  // make sure at least one template id is defined
+  if (jobTemplateId === undefined && workflowTemplateId === undefined) {
+    const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'";
+    console.log(errmsg)
+    core.setFailed(errmsg)
+    return
+  }
+
+  // make sure only one template id is defined
+  if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
+    const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
+    console.log(errmsg)
+    core.setFailed(errmsg)
+    return
+  }
+
   try {
     const jobUrl: string = await launchTemplate()
     const jobData = await getJobStatus(jobUrl)

@@ -16,7 +16,10 @@ inputs:
     required: true
   job_template_id:
     description: 'Job Template ID on Ansible Tower or AWX'
-    required: true
+    required: false 
+  workflow_template_id:
+    description: 'Workflow Template ID on Ansible Tower or AWX'
+    required: false 
   extra_vars:
     description: 'Extra vars required by the job template'
     required: true
