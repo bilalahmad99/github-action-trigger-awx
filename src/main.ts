@@ -1,6 +1,16 @@
 import * as core from '@actions/core'
 import {wait} from './wait'
 import axios from 'axios'
+import axiosRetry from 'axios-retry'
+
+// add a bit of intermittent fault tolerance in requests made to awx
+// start by adding 3 retries at 1 minute interval; may want to expose these later as action inputs
+axiosRetry(axios, {
+  retries: 3,
+  retryDelay: () => {
+    return 1000 * 60
+  }
+})
 
 const username: string = core.getInput('ansible_tower_user')
 const password: string = core.getInput('ansible_tower_pass')
