@@ -124,6 +124,7 @@ function getJobStatus(jobUrl) {
 }
 function printJobOutput(jobData) {
     return __awaiter(this, void 0, void 0, function* () {
+        console.log(`job_data: ${jobData}`);
         const response = yield axios_1.default.get(`${url}${jobData.related.stdout}?format=txt`, {
             auth: {
                 username: username,

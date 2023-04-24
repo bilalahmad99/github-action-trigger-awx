@@ -99,6 +99,8 @@ async function getJobStatus(jobUrl: string) {
 }
 
 async function printJobOutput(jobData: any) {
+  console.log(`job_data: ${jobData}`)
+
   const response = await axios.get(
     `${url}${jobData.related.stdout}?format=txt`,
     {
