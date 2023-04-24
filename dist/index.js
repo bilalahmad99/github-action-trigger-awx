@@ -163,7 +163,7 @@ function exportResourceName(output) {
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         // make sure at least one template id is defined
-        if (jobTemplateId === undefined && workflowTemplateId === undefined) {
+        if (jobTemplateId === '' && workflowTemplateId === '') {
             const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'";
             console.log(errmsg);
             core.setFailed(errmsg);
@@ -172,7 +172,7 @@ function run() {
         console.log(`jobTemplateId: ${jobTemplateId}`);
         console.log(`workflowTemplateId: ${workflowTemplateId}`);
         // make sure only one template id is defined
-        if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
+        if (jobTemplateId !== '' && workflowTemplateId !== '') {
             const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
             console.log(errmsg);
             core.setFailed(errmsg);

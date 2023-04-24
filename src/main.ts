@@ -144,7 +144,7 @@ async function exportResourceName(output: string) {
 
 async function run(): Promise<void> {
   // make sure at least one template id is defined
-  if (jobTemplateId === undefined && workflowTemplateId === undefined) {
+  if (jobTemplateId === '' && workflowTemplateId === '') {
     const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'"
     console.log(errmsg)
     core.setFailed(errmsg)
@@ -154,7 +154,7 @@ async function run(): Promise<void> {
   console.log(`jobTemplateId: ${jobTemplateId}`)
   console.log(`workflowTemplateId: ${workflowTemplateId}`)
   // make sure only one template id is defined
-  if (jobTemplateId !== undefined && workflowTemplateId !== undefined) {
+  if (jobTemplateId !== '' && workflowTemplateId !== '') {
     const errmsg =
       "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both"
     console.log(errmsg)
