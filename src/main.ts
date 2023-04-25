@@ -136,7 +136,7 @@ async function printJobOutput(jobData: any) {
     console.log(jobData.result_traceback)
   }
 
-  if (jobData.status !== 'sucessfull') {
+  if (jobData.status !== 'successful') {
     throw new Error(
       `Issue running AWX job ${jobData.id}. Job exited with status: '${jobData.status}'`
     )
