@@ -40,5 +40,5 @@ When a job template is successfully completed the stdout results are exported.
 **NOTE**
 
 * Either **job_template_id** or **workflow_template_id** must be defined.
-* Workflow templates runs do not export any outputs.
+* Workflow template runs do not export any outputs.
 ---
