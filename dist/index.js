@@ -72,6 +72,7 @@ const launchTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
         templateTypeLabel = 'Workflow';
         urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`;
     }
+    console.log(`launching job ${urlLocation} with extra_vars`, additionalVars);
     const response = yield axios_1.default.post(urlLocation, { extra_vars: additionalVars }, {
         auth: {
             username: username,

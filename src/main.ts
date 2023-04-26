@@ -33,6 +33,8 @@ const launchTemplate = async () => {
     urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
   }
 
+  console.log(`launching job ${urlLocation} with extra_vars`, additionalVars)
+
   const response = await axios.post(
     urlLocation,
     {extra_vars: additionalVars},
