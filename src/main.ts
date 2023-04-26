@@ -27,7 +27,7 @@ const launchTemplate = async () => {
   let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`
   let templateTypeLabel = 'Job'
 
-  if (workflowTemplateId !== undefined) {
+  if (workflowTemplateId !== '') {
     templateId = workflowTemplateId
     templateTypeLabel = 'Workflow'
     urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
