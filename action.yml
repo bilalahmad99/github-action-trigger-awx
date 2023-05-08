@@ -14,9 +14,20 @@ inputs:
   ansible_tower_url:
     description: 'Ansible Tower or AWX URL'
     required: true
+  ansible_tower_retries:
+    description: 'The number of times to retry an AWX API request'
+    required: true
+    default: 3
+  ansible_tower_retry_interval:
+    description: 'The amount of milliseconds to wait in between retries of an AWX API request'
+    required: true
+    default: 60000
   job_template_id:
     description: 'Job Template ID on Ansible Tower or AWX'
-    required: true
+    required: false 
+  workflow_template_id:
+    description: 'Workflow Template ID on Ansible Tower or AWX'
+    required: false 
   extra_vars:
     description: 'Extra vars required by the job template'
     required: true
