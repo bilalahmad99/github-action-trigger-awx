@@ -200,8 +200,10 @@ function run() {
             }
         }
         catch (error) {
-            if (error instanceof Error)
+            if (error instanceof Error) {
                 core.setFailed(error.message);
+                throw error;
+            }
         }
     });
 }
