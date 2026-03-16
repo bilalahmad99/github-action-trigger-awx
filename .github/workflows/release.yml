@@ -1,0 +1,75 @@
+name: 'Auto Release'
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for checking out all tags
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and Package action
+        run: |
+          npm run build
+          npm run package
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit dist if changed
+        run: |
+          if [ -n "$(git status --porcelain dist/)" ]; then
+            git add dist/
+            git commit -m "chore: build and package latest changes [skip ci]"
+          fi
+
+      - name: Bump minor version, update package.json, and create tag
+        run: |
+          # Bump minor version in package.json and create a git tag
+          NEW_VERSION=$(npm version minor -m "chore: release %s [skip ci]")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+          # Extract major version part for floating tags
+          # NEW_VERSION is something like v1.2.0, so cut with 'v' or '.'
+          MAJOR_VERSION=$(echo $NEW_VERSION | cut -d. -f1)
+          echo "MAJOR_VERSION=$MAJOR_VERSION" >> $GITHUB_ENV
+
+      - name: Update floating tags and push
+        run: |
+          # Create or update the major version tag (e.g., v1)
+          git tag -f ${{ env.MAJOR_VERSION }}
+
+          # Create or update the 'latest' tag
+          git tag -f latest
+
+          # Push the new commits (package.json update) and tags
+          # Using --follow-tags to push the specific version tag
+          git push origin main --follow-tags
+
+          # Force push the floating tags (major and latest)
+          git push -f origin ${{ env.MAJOR_VERSION }}
+          git push -f origin latest
