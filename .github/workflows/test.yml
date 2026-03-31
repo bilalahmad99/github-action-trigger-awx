@@ -17,6 +17,6 @@ jobs:
         with:
           node-version: 20.x
       - run: |
-          npm install
+          npm install --legacy-peer-deps
       - run: |
           npm run all
