@@ -6,7 +6,7 @@ Github action that allows you to trigger job or workflow templates on Ansible To
 
 ```yaml
 name: Trigger Job Template on AWX
-uses: bilalahmad99/github-action-trigger-awx@1.1.0
+uses: bilalahmad99/github-action-trigger-awx@v2.0.0
 with:
   ansible_tower_user: ${{ secrets.ansibleUser }}
   ansible_tower_pass: ${{ secrets.ansiblePass }}
