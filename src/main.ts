@@ -3,193 +3,208 @@ import {wait} from './wait'
 import axios from 'axios'
 import axiosRetry from 'axios-retry'
 
-const username: string = core.getInput('ansible_tower_user')
-const password: string = core.getInput('ansible_tower_pass')
-const retries = Number(core.getInput('ansible_tower_retries'))
-const retry_interval = Number(core.getInput('ansible_tower_retry_interval'))
-const url: string = core.getInput('ansible_tower_url')
-const additionalVars = JSON.parse(core.getInput('extra_vars'))
-const jobTemplateId: string = core.getInput('job_template_id')
-const workflowTemplateId: string = core.getInput('workflow_template_id')
+function getInputs() {
+  const username = core.getInput('ansible_tower_user')
+  const password = core.getInput('ansible_tower_pass')
+  const token = core.getInput('ansible_tower_token')
+  const retries = Number(core.getInput('ansible_tower_retries'))
+  const retryInterval = Number(core.getInput('ansible_tower_retry_interval'))
+  const url = core.getInput('ansible_tower_url')
+  const extraVars = JSON.parse(core.getInput('extra_vars') || '{}')
+  const jobTemplateId = core.getInput('job_template_id')
+  const workflowTemplateId = core.getInput('workflow_template_id')
 
-// add a bit of intermittent fault tolerance in requests made to awx
-// start by adding 3 retries at 1 minute interval; may want to expose these later as action inputs
-axiosRetry(axios, {
-  retries: retries,
-  retryDelay: () => {
-    return retry_interval
+  // mask sensitive values
+  if (password) core.setSecret(password)
+  if (token) core.setSecret(token)
+
+  return {
+    username,
+    password,
+    token,
+    retries,
+    retryInterval,
+    url,
+    extraVars,
+    jobTemplateId,
+    workflowTemplateId
   }
-})
+}
 
-const launchTemplate = async () => {
-  // determine whether or not we are triggering a workflow or job template based on the id passed in
-  let templateId = jobTemplateId
-  let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`
-  let templateTypeLabel = 'Job'
-
-  if (workflowTemplateId !== '') {
-    templateId = workflowTemplateId
-    templateTypeLabel = 'Workflow'
-    urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
+function buildAuthConfig(inputs: ReturnType<typeof getInputs>) {
+  if (inputs.token) {
+    return {headers: {Authorization: `Bearer ${inputs.token}`}}
   }
+  return {auth: {username: inputs.username, password: inputs.password}}
+}
 
-  console.log(`launching job ${urlLocation} with extra_vars`, additionalVars)
+export async function launchTemplate(inputs: ReturnType<typeof getInputs>) {
+  const {url, jobTemplateId, workflowTemplateId, extraVars} = inputs
+  const authConfig = buildAuthConfig(inputs)
+
+  const isWorkflow = workflowTemplateId !== ''
+  const templateId = isWorkflow ? workflowTemplateId : jobTemplateId
+  const templateTypeLabel = isWorkflow ? 'Workflow' : 'Job'
+  const urlLocation = isWorkflow
+    ? `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
+    : `${url}/api/v2/job_templates/${templateId}/launch/`
+
+  core.info(`Launching ${templateTypeLabel} template ${urlLocation}`)
 
   const response = await axios.post(
     urlLocation,
-    {extra_vars: additionalVars},
-    {
-      auth: {
-        username: username,
-        password: password
-      }
-    }
+    {extra_vars: extraVars},
+    authConfig
   )
+
   if (
-    response &&
-    (response.data.job !== undefined ||
-      response.data.workflow_job !== undefined)
+    response?.data.job !== undefined ||
+    response?.data.workflow_job !== undefined
   ) {
-    console.log(
-      `${templateTypeLabel} Template Id ${templateId} launched successfully.`
-    )
-    console.log(
-      `Job ${response.data.job} was created on Ansible Tower: Status ${response.status}.`
+    core.info(
+      `${templateTypeLabel} Template ${templateId} launched successfully. Status: ${response.status}`
     )
     return response.data.url
   }
-  if (response && response.data.detail) {
-    console.log(
-      `${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`
-    )
+
+  if (response?.data.detail) {
     throw new Error(response.data.detail)
-  } else {
-    console.log(response)
-    throw new Error(
-      `${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is not working`
-    )
   }
+
+  throw new Error(
+    `${templateTypeLabel} Template ${templateId} couldn't be launched`
+  )
 }
 
-async function getJobStatus(jobUrl: string) {
-  let response = await axios.get(url + jobUrl, {
-    auth: {
-      username: username,
-      password: password
-    }
-  })
+async function getJobStatus(
+  jobUrl: string,
+  url: string,
+  authConfig: object
+): Promise<any> {
+  let response = await axios.get(url + jobUrl, authConfig)
 
-  if (response && response.data.status) {
-    if (
-      !(response.data.status === 'failed') &&
-      !(response.data.status === 'successful') &&
-      !(response.data.status === 'error')
-    ) {
-      console.log('Validating Job status...')
-      await wait(10000)
-      console.log(`Job status: ${response.data.status}.`)
-      response = await getJobStatus(jobUrl)
-      return response
+  while (response?.data.status) {
+    const {status} = response.data
+    if (status === 'failed' || status === 'successful' || status === 'error') {
+      return response.data
     }
-    return response.data
+    core.info(`Job status: ${status}. Waiting...`)
+    await wait(10000)
+    response = await axios.get(url + jobUrl, authConfig)
   }
-  if (response && response.data.detail) {
-    console.log('Failed to get job status from AWX.')
+
+  if (response?.data.detail) {
     throw new Error(response.data.detail)
-  } else {
-    console.log(response)
-    throw new Error('Failed to get job status from AWX.')
   }
+
+  throw new Error('Failed to get job status from AWX.')
 }
 
-async function printJobOutput(jobData: any) {
-  console.log('job_data: ', jobData)
+async function fetchJobStdout(
+  jobData: any,
+  url: string,
+  authConfig: object
+): Promise<string | null> {
+  if (!jobData.related?.stdout) return null
 
-  // if the jobData contains a link to the stdout results of the job retrieve that information
-  // ( workflows do not currently support this )
-  let response
-  if (jobData.related.stdout) {
-    response = await axios.get(`${url}${jobData.related.stdout}?format=txt`, {
-      auth: {
-        username: username,
-        password: password
-      }
-    })
+  const response = await axios.get(
+    `${url}${jobData.related.stdout}?format=txt`,
+    authConfig
+  )
 
-    // if there is a response log it
-    if (!response) {
-      console.log('[warning]: An error ocurred trying to get the AWX output')
-    }
+  if (!response) {
+    core.warning('An error occurred trying to get the AWX output')
+    return null
   }
 
-  // print job status and any relevant output
-  console.log(`Final status: ${jobData.status}`)
+  return response.data
+}
 
-  if (response) {
-    console.log(
-      '******************************Ansible Tower output******************************'
+function logJobOutput(jobData: any, stdout: string | null) {
+  core.info(`Final status: ${jobData.status}`)
+
+  if (stdout) {
+    core.info(
+      '==============================Ansible Tower output=============================='
     )
-    console.log(response.data)
+    core.info(stdout)
   }
+
   if (jobData.result_traceback && jobData.result_traceback !== '') {
-    console.log(
-      '***************************AWX traceback output***************************'
+    core.info(
+      '===========================AWX traceback output==========================='
     )
-    console.log(jobData.result_traceback)
+    core.info(jobData.result_traceback)
   }
 
   if (jobData.status !== 'successful') {
     throw new Error(
-      `Issue running AWX job ${jobData.id}. Job exited with status: '${jobData.status}'`
+      `AWX job ${jobData.id} exited with status: '${jobData.status}'`
     )
   }
-
-  return response
 }
 
-async function exportResourceName(output: string) {
+function exportResourceName(output: string) {
+  // matches resource names in paths like /resourceName" or /resourceName\
   const regex = /(\/(\w+)\\)|(\/(\w+)")/g
   const found = output.match(regex)
 
   if (found) {
-    const resourceName = found[found.length - 1].substring(
-      1,
-      found[found.length - 1].length - 1
-    )
+    const last = found[found.length - 1]
+    const resourceName = last.substring(1, last.length - 1)
     core.setOutput('RESOURCE_NAME', resourceName)
-    console.log(`Resource name exported: ${resourceName}`)
+    core.info(`Resource name exported: ${resourceName}`)
   } else {
-    console.log('[warning]: No resource name exported as output variable.')
+    core.warning('No resource name exported as output variable.')
   }
 }
 
-async function run(): Promise<void> {
-  // make sure at least one template id is defined
+export async function run(): Promise<void> {
+  const inputs = getInputs()
+  const {
+    jobTemplateId,
+    workflowTemplateId,
+    retries,
+    retryInterval,
+    url,
+    token,
+    username,
+    password
+  } = inputs
+
   if (jobTemplateId === '' && workflowTemplateId === '') {
-    const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'"
-    console.log(errmsg)
-    core.setFailed(errmsg)
+    core.setFailed("Must define 'job_template_id' or 'workflow_template_id'")
     return
   }
 
-  // make sure only one template id is defined
   if (jobTemplateId !== '' && workflowTemplateId !== '') {
-    const errmsg =
-      "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both"
-    console.log(errmsg)
-    core.setFailed(errmsg)
+    core.setFailed(
+      "Only 'job_template_id' or 'workflow_template_id' can be passed, not both"
+    )
     return
   }
+
+  if (!token && (!username || !password)) {
+    core.setFailed(
+      "Must provide either 'ansible_tower_token' or both 'ansible_tower_user' and 'ansible_tower_pass'"
+    )
+    return
+  }
+
+  axiosRetry(axios, {
+    retries,
+    retryDelay: () => retryInterval
+  })
 
   try {
-    const jobUrl: string = await launchTemplate()
-    const jobData = await getJobStatus(jobUrl)
-    const jobStdoutResponse = await printJobOutput(jobData)
+    const authConfig = buildAuthConfig(inputs)
+    const jobUrl: string = await launchTemplate(inputs)
+    const jobData = await getJobStatus(jobUrl, url, authConfig)
+    const stdout = await fetchJobStdout(jobData, url, authConfig)
+    logJobOutput(jobData, stdout)
 
-    // if the stdout was retrieved export that as a resouce
-    if (jobStdoutResponse) {
-      const output = jobStdoutResponse.data
-      await exportResourceName(output)
+    if (stdout) {
+      exportResourceName(stdout)
     }
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)

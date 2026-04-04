@@ -1,39 +1,43 @@
 name: 'Trigger AWX job templates through REST APIs'
-description: 'Github action that allows you to trigger job templates via API call on AWX'
+description: 'Github action that allows you to trigger job or workflow templates via API call on AWX'
 author: 'bilalahmad99'
 branding:
   icon: 'truck'
   color: 'green'
 inputs:
   ansible_tower_user:
-    description: 'Ansible Tower or AWX User'
-    required: true
+    description: 'Ansible Tower or AWX username (used with ansible_tower_pass for basic auth)'
+    required: false
   ansible_tower_pass:
-    description: 'Ansible Tower or AWX Password'
-    required: true
+    description: 'Ansible Tower or AWX password (used with ansible_tower_user for basic auth)'
+    required: false
+  ansible_tower_token:
+    description: 'Ansible Tower or AWX OAuth2 token (preferred over username/password)'
+    required: false
   ansible_tower_url:
-    description: 'Ansible Tower or AWX URL'
+    description: 'Ansible Tower or AWX base URL; e.g. https://awx.example.net'
     required: true
   ansible_tower_retries:
     description: 'The number of times to retry an AWX API request'
-    required: true
-    default: 3
+    required: false
+    default: '3'
   ansible_tower_retry_interval:
-    description: 'The amount of milliseconds to wait in between retries of an AWX API request'
-    required: true
-    default: 60000
+    description: 'The number of milliseconds to wait between retries of an AWX API request'
+    required: false
+    default: '60000'
   job_template_id:
     description: 'Job Template ID on Ansible Tower or AWX'
-    required: false 
+    required: false
   workflow_template_id:
     description: 'Workflow Template ID on Ansible Tower or AWX'
-    required: false 
+    required: false
   extra_vars:
-    description: 'Extra vars required by the job template'
-    required: true
+    description: 'A JSON string of extra variables to pass to the launched job or workflow template'
+    required: false
+    default: '{}'
 outputs:
   RESOURCE_NAME:
-    description: 'Component resource name output'
+    description: 'Component resource name parsed from job stdout output'
 runs:
   using: 'node20'
   main: 'dist/index.js'

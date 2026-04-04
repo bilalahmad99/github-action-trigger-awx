@@ -52,161 +52,155 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.launchTemplate = launchTemplate;
+exports.run = run;
 const core = __importStar(__nccwpck_require__(7484));
 const wait_1 = __nccwpck_require__(6339);
 const axios_1 = __importDefault(__nccwpck_require__(7269));
 const axios_retry_1 = __importDefault(__nccwpck_require__(750));
-const username = core.getInput('ansible_tower_user');
-const password = core.getInput('ansible_tower_pass');
-const retries = Number(core.getInput('ansible_tower_retries'));
-const retry_interval = Number(core.getInput('ansible_tower_retry_interval'));
-const url = core.getInput('ansible_tower_url');
-const additionalVars = JSON.parse(core.getInput('extra_vars'));
-const jobTemplateId = core.getInput('job_template_id');
-const workflowTemplateId = core.getInput('workflow_template_id');
-// add a bit of intermittent fault tolerance in requests made to awx
-// start by adding 3 retries at 1 minute interval; may want to expose these later as action inputs
-(0, axios_retry_1.default)(axios_1.default, {
-    retries: retries,
-    retryDelay: () => {
-        return retry_interval;
+function getInputs() {
+    const username = core.getInput('ansible_tower_user');
+    const password = core.getInput('ansible_tower_pass');
+    const token = core.getInput('ansible_tower_token');
+    const retries = Number(core.getInput('ansible_tower_retries'));
+    const retryInterval = Number(core.getInput('ansible_tower_retry_interval'));
+    const url = core.getInput('ansible_tower_url');
+    const extraVars = JSON.parse(core.getInput('extra_vars') || '{}');
+    const jobTemplateId = core.getInput('job_template_id');
+    const workflowTemplateId = core.getInput('workflow_template_id');
+    // mask sensitive values
+    if (password)
+        core.setSecret(password);
+    if (token)
+        core.setSecret(token);
+    return {
+        username,
+        password,
+        token,
+        retries,
+        retryInterval,
+        url,
+        extraVars,
+        jobTemplateId,
+        workflowTemplateId
+    };
+}
+function buildAuthConfig(inputs) {
+    if (inputs.token) {
+        return { headers: { Authorization: `Bearer ${inputs.token}` } };
     }
-});
-const launchTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
-    // determine whether or not we are triggering a workflow or job template based on the id passed in
-    let templateId = jobTemplateId;
-    let urlLocation = `${url}/api/v2/job_templates/${templateId}/launch/`;
-    let templateTypeLabel = 'Job';
-    if (workflowTemplateId !== '') {
-        templateId = workflowTemplateId;
-        templateTypeLabel = 'Workflow';
-        urlLocation = `${url}/api/v2/workflow_job_templates/${templateId}/launch/`;
-    }
-    console.log(`launching job ${urlLocation} with extra_vars`, additionalVars);
-    const response = yield axios_1.default.post(urlLocation, { extra_vars: additionalVars }, {
-        auth: {
-            username: username,
-            password: password
-        }
-    });
-    if (response &&
-        (response.data.job !== undefined ||
-            response.data.workflow_job !== undefined)) {
-        console.log(`${templateTypeLabel} Template Id ${templateId} launched successfully.`);
-        console.log(`Job ${response.data.job} was created on Ansible Tower: Status ${response.status}.`);
-        return response.data.url;
-    }
-    if (response && response.data.detail) {
-        console.log(`${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is returning the following error:`);
-        throw new Error(response.data.detail);
-    }
-    else {
-        console.log(response);
-        throw new Error(`${templateTypeLabel} Template ID ${templateId} couldn't be launched, the Ansible API is not working`);
-    }
-});
-function getJobStatus(jobUrl) {
+    return { auth: { username: inputs.username, password: inputs.password } };
+}
+function launchTemplate(inputs) {
     return __awaiter(this, void 0, void 0, function* () {
-        let response = yield axios_1.default.get(url + jobUrl, {
-            auth: {
-                username: username,
-                password: password
-            }
-        });
-        if (response && response.data.status) {
-            if (!(response.data.status === 'failed') &&
-                !(response.data.status === 'successful') &&
-                !(response.data.status === 'error')) {
-                console.log('Validating Job status...');
-                yield (0, wait_1.wait)(10000);
-                console.log(`Job status: ${response.data.status}.`);
-                response = yield getJobStatus(jobUrl);
-                return response;
-            }
-            return response.data;
+        const { url, jobTemplateId, workflowTemplateId, extraVars } = inputs;
+        const authConfig = buildAuthConfig(inputs);
+        const isWorkflow = workflowTemplateId !== '';
+        const templateId = isWorkflow ? workflowTemplateId : jobTemplateId;
+        const templateTypeLabel = isWorkflow ? 'Workflow' : 'Job';
+        const urlLocation = isWorkflow
+            ? `${url}/api/v2/workflow_job_templates/${templateId}/launch/`
+            : `${url}/api/v2/job_templates/${templateId}/launch/`;
+        core.info(`Launching ${templateTypeLabel} template ${urlLocation}`);
+        const response = yield axios_1.default.post(urlLocation, { extra_vars: extraVars }, authConfig);
+        if ((response === null || response === void 0 ? void 0 : response.data.job) !== undefined ||
+            (response === null || response === void 0 ? void 0 : response.data.workflow_job) !== undefined) {
+            core.info(`${templateTypeLabel} Template ${templateId} launched successfully. Status: ${response.status}`);
+            return response.data.url;
         }
-        if (response && response.data.detail) {
-            console.log('Failed to get job status from AWX.');
+        if (response === null || response === void 0 ? void 0 : response.data.detail) {
             throw new Error(response.data.detail);
         }
-        else {
-            console.log(response);
-            throw new Error('Failed to get job status from AWX.');
-        }
+        throw new Error(`${templateTypeLabel} Template ${templateId} couldn't be launched`);
     });
 }
-function printJobOutput(jobData) {
+function getJobStatus(jobUrl, url, authConfig) {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log('job_data: ', jobData);
-        // if the jobData contains a link to the stdout results of the job retrieve that information
-        // ( workflows do not currently support this )
-        let response;
-        if (jobData.related.stdout) {
-            response = yield axios_1.default.get(`${url}${jobData.related.stdout}?format=txt`, {
-                auth: {
-                    username: username,
-                    password: password
-                }
-            });
-            // if there is a response log it
-            if (!response) {
-                console.log('[warning]: An error ocurred trying to get the AWX output');
+        let response = yield axios_1.default.get(url + jobUrl, authConfig);
+        while (response === null || response === void 0 ? void 0 : response.data.status) {
+            const { status } = response.data;
+            if (status === 'failed' || status === 'successful' || status === 'error') {
+                return response.data;
             }
+            core.info(`Job status: ${status}. Waiting...`);
+            yield (0, wait_1.wait)(10000);
+            response = yield axios_1.default.get(url + jobUrl, authConfig);
         }
-        // print job status and any relevant output
-        console.log(`Final status: ${jobData.status}`);
-        if (response) {
-            console.log('******************************Ansible Tower output******************************');
-            console.log(response.data);
+        if (response === null || response === void 0 ? void 0 : response.data.detail) {
+            throw new Error(response.data.detail);
         }
-        if (jobData.result_traceback && jobData.result_traceback !== '') {
-            console.log('***************************AWX traceback output***************************');
-            console.log(jobData.result_traceback);
-        }
-        if (jobData.status !== 'successful') {
-            throw new Error(`Issue running AWX job ${jobData.id}. Job exited with status: '${jobData.status}'`);
-        }
-        return response;
+        throw new Error('Failed to get job status from AWX.');
     });
+}
+function fetchJobStdout(jobData, url, authConfig) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        if (!((_a = jobData.related) === null || _a === void 0 ? void 0 : _a.stdout))
+            return null;
+        const response = yield axios_1.default.get(`${url}${jobData.related.stdout}?format=txt`, authConfig);
+        if (!response) {
+            core.warning('An error occurred trying to get the AWX output');
+            return null;
+        }
+        return response.data;
+    });
+}
+function logJobOutput(jobData, stdout) {
+    core.info(`Final status: ${jobData.status}`);
+    if (stdout) {
+        core.info('==============================Ansible Tower output==============================');
+        core.info(stdout);
+    }
+    if (jobData.result_traceback && jobData.result_traceback !== '') {
+        core.info('===========================AWX traceback output===========================');
+        core.info(jobData.result_traceback);
+    }
+    if (jobData.status !== 'successful') {
+        throw new Error(`AWX job ${jobData.id} exited with status: '${jobData.status}'`);
+    }
 }
 function exportResourceName(output) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const regex = /(\/(\w+)\\)|(\/(\w+)")/g;
-        const found = output.match(regex);
-        if (found) {
-            const resourceName = found[found.length - 1].substring(1, found[found.length - 1].length - 1);
-            core.setOutput('RESOURCE_NAME', resourceName);
-            console.log(`Resource name exported: ${resourceName}`);
-        }
-        else {
-            console.log('[warning]: No resource name exported as output variable.');
-        }
-    });
+    // matches resource names in paths like /resourceName" or /resourceName\
+    const regex = /(\/(\w+)\\)|(\/(\w+)")/g;
+    const found = output.match(regex);
+    if (found) {
+        const last = found[found.length - 1];
+        const resourceName = last.substring(1, last.length - 1);
+        core.setOutput('RESOURCE_NAME', resourceName);
+        core.info(`Resource name exported: ${resourceName}`);
+    }
+    else {
+        core.warning('No resource name exported as output variable.');
+    }
 }
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        // make sure at least one template id is defined
+        const inputs = getInputs();
+        const { jobTemplateId, workflowTemplateId, retries, retryInterval, url, token, username, password } = inputs;
         if (jobTemplateId === '' && workflowTemplateId === '') {
-            const errmsg = "Must define 'jobTemplateId' or 'workflowTemplateId'";
-            console.log(errmsg);
-            core.setFailed(errmsg);
+            core.setFailed("Must define 'job_template_id' or 'workflow_template_id'");
             return;
         }
-        // make sure only one template id is defined
         if (jobTemplateId !== '' && workflowTemplateId !== '') {
-            const errmsg = "Only 'jobTemplateId' or 'workflowTemplateId' can be passed, not both";
-            console.log(errmsg);
-            core.setFailed(errmsg);
+            core.setFailed("Only 'job_template_id' or 'workflow_template_id' can be passed, not both");
             return;
         }
+        if (!token && (!username || !password)) {
+            core.setFailed("Must provide either 'ansible_tower_token' or both 'ansible_tower_user' and 'ansible_tower_pass'");
+            return;
+        }
+        (0, axios_retry_1.default)(axios_1.default, {
+            retries,
+            retryDelay: () => retryInterval
+        });
         try {
-            const jobUrl = yield launchTemplate();
-            const jobData = yield getJobStatus(jobUrl);
-            const jobStdoutResponse = yield printJobOutput(jobData);
-            // if the stdout was retrieved export that as a resouce
-            if (jobStdoutResponse) {
-                const output = jobStdoutResponse.data;
-                yield exportResourceName(output);
+            const authConfig = buildAuthConfig(inputs);
+            const jobUrl = yield launchTemplate(inputs);
+            const jobData = yield getJobStatus(jobUrl, url, authConfig);
+            const stdout = yield fetchJobStdout(jobData, url, authConfig);
+            logJobOutput(jobData, stdout);
+            if (stdout) {
+                exportResourceName(stdout);
             }
         }
         catch (error) {
